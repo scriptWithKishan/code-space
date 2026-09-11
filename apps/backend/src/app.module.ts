@@ -4,6 +4,11 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { MailModule } from './mail/mail.module.js';
+import { WorkspacesModule } from './workspaces/workspaces.module.js';
+import { ConversationsModule } from './conversations/conversations.module.js';
+import { WebSocketsModule } from './websockets/websockets.module.js';
+import { AiModule } from './ai/ai.module.js';
 
 export function validateEnvironment(config: Record<string, any>) {
   const requiredVars = ['MONGODB_URI', 'JWT_SECRET'];
@@ -38,6 +43,11 @@ export function validateEnvironment(config: Record<string, any>) {
       },
     }),
     AuthModule,
+    MailModule,
+    WorkspacesModule,
+    ConversationsModule,
+    WebSocketsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
