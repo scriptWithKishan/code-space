@@ -31,7 +31,10 @@ export function validateEnvironment(config: Record<string, any>) {
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const uri = configService.getOrThrow<string>('MONGODB_URI');
-        return { uri };
+        return {
+          uri,
+          serverSelectionTimeoutMS: 5000,
+        };
       },
     }),
     AuthModule,
