@@ -3,6 +3,13 @@ import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
+import { ConversationProvider } from './context/ConversationContext';
+import { AIProvider } from './context/AIContext';
+import CreateWorkspaceModal from './components/CreateWorkspaceModal';
+import AIChatDrawer from './components/AIChatDrawer';
+import CmdKModal from './components/CmdKModal';
+import AIFloatingTrigger from './components/AIFloatingTrigger';
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -27,7 +34,19 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} bg-background text-foreground min-h-screen antialiased`}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <WorkspaceProvider>
+              <ConversationProvider>
+                <AIProvider>
+                  {children}
+                  <CreateWorkspaceModal />
+                  <AIChatDrawer />
+                  <CmdKModal />
+                  <AIFloatingTrigger />
+                </AIProvider>
+              </ConversationProvider>
+            </WorkspaceProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
