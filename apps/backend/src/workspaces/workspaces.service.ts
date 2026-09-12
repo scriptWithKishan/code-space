@@ -193,7 +193,7 @@ export class WorkspacesService {
       expiresAt,
     });
 
-    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+    const appUrl = this.getFrontendUrl();
     const inviteUrl = `${appUrl}/invite/accept?token=${token}`;
 
     try {
@@ -205,6 +205,21 @@ export class WorkspacesService {
     }
 
     return invite;
+  }
+
+  private getFrontendUrl(): string {
+    let url =
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('APP_URL') ||
+      this.configService.get<string>('NEXT_PUBLIC_APP_URL') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      'http://localhost:3000';
+
+    url = url.trim().replace(/\/+$/, '');
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    return url;
   }
 
   async getInviteDetails(token: string) {

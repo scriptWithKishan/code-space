@@ -45,7 +45,17 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
     const authResult = await this.authService.validateGoogleUser(req.user);
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    let frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('APP_URL') ||
+      this.configService.get<string>('NEXT_PUBLIC_APP_URL') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      'http://localhost:3000';
+
+    frontendUrl = frontendUrl.trim().replace(/\/+$/, '');
+    if (!frontendUrl.startsWith('http://') && !frontendUrl.startsWith('https://')) {
+      frontendUrl = `https://${frontendUrl}`;
+    }
     res.redirect(`${frontendUrl}/auth/callback?token=${authResult.accessToken}`);
   }
 
