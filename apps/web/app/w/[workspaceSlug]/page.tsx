@@ -10,6 +10,7 @@ import WorkspaceSettingsModal from '../../components/WorkspaceSettingsModal';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { useConversation } from '../../context/ConversationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useAI } from '../../context/AIContext';
 import { isWorkspaceAdmin } from '../../lib/utils';
 import { Sparkles, Hash, UserPlus, ArrowRight, Building2, MessageSquare } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export default function WorkspacePage() {
   const { activeWorkspace, setActiveWorkspaceBySlug, loadingWorkspaces, workspaces, refreshWorkspaces } = useWorkspace();
   const { groups, openInviteModal, openCreateGroupModal } = useConversation();
   const { user } = useAuth();
+  const { openDrawer } = useAI();
 
   useEffect(() => {
     if (workspaceSlug) {
@@ -80,15 +82,24 @@ export default function WorkspacePage() {
             </div>
           </div>
 
-          {isAdmin && (
+          <div className="flex items-center space-x-2">
             <button
-              onClick={openInviteModal}
-              className="flex items-center gap-2 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-xs"
+              onClick={openDrawer}
+              className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition shadow-2xs"
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Invite Members
+              <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+              <span>Ask AI</span>
             </button>
-          )}
+            {isAdmin && (
+              <button
+                onClick={openInviteModal}
+                className="flex items-center gap-2 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-xs"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Invite Members
+              </button>
+            )}
+          </div>
         </header>
 
         {/* Workspace Canvas Body */}

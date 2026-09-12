@@ -10,9 +10,10 @@ import WorkspaceSettingsModal from '../../../components/WorkspaceSettingsModal';
 import { useWorkspace } from '../../../context/WorkspaceContext';
 import { useConversation } from '../../../context/ConversationContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useAI } from '../../../context/AIContext';
 import { isWorkspaceAdmin } from '../../../lib/utils';
 import { api } from '../../../lib/api';
-import { Hash, Send, Paperclip, Smile, Loader2, UserPlus } from 'lucide-react';
+import { Hash, Send, Paperclip, Smile, Loader2, UserPlus, Sparkles } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 
 export interface ChatMessage {
@@ -33,6 +34,7 @@ export default function GroupChatPage() {
   const { activeWorkspace, setActiveWorkspaceBySlug } = useWorkspace();
   const { groups, activeGroup, setActiveGroupBySlug, openInviteModal } = useConversation();
   const { user } = useAuth();
+  const { openDrawer } = useAI();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(true);
@@ -164,15 +166,24 @@ export default function GroupChatPage() {
             </div>
           </div>
 
-          {isAdmin && (
+          <div className="flex items-center space-x-2">
             <button
-              onClick={openInviteModal}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+              onClick={openDrawer}
+              className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition shadow-2xs"
             >
-              <UserPlus className="h-3.5 w-3.5 text-primary" />
-              <span>Invite</span>
+              <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+              <span>Ask AI</span>
             </button>
-          )}
+            {isAdmin && (
+              <button
+                onClick={openInviteModal}
+                className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+              >
+                <UserPlus className="h-3.5 w-3.5 text-primary" />
+                <span>Invite</span>
+              </button>
+            )}
+          </div>
         </header>
 
         {/* Message History Stream */}

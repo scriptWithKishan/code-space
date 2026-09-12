@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useAI } from '../context/AIContext';
 import {
   Sparkles,
   PanelLeftClose,
@@ -23,6 +24,7 @@ export default function PrimarySidebar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { workspaces, activeWorkspace, openCreateModal, loadingWorkspaces } = useWorkspace();
+  const { openDrawer } = useAI();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(false);
   const router = useRouter();
@@ -193,7 +195,25 @@ export default function PrimarySidebar() {
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-3 border-t border-sidebar-border">
+      <div className="p-3 border-t border-sidebar-border space-y-2.5">
+        {/* Native Ask AI Button */}
+        <button
+          onClick={openDrawer}
+          title="Open AI Chat Assistant (Cmd+K)"
+          className={`flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-primary/15 via-purple-500/15 to-primary/15 border border-primary/30 hover:border-primary/50 text-foreground transition shadow-2xs ${
+            isSidebarOpen ? 'px-3 py-2' : 'justify-center p-2'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5">
+            <Sparkles className="h-4 w-4 text-amber-400 animate-pulse shrink-0" />
+            {isSidebarOpen && <span className="text-xs font-semibold">Ask AI</span>}
+          </div>
+          {isSidebarOpen && (
+            <span className="text-[10px] font-mono text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded border border-border">
+              ⌘K
+            </span>
+          )}
+        </button>
         {isSidebarOpen ? (
           <div className="space-y-2.5">
             {/* Theme Toggle */}
