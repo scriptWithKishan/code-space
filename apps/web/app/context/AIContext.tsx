@@ -51,7 +51,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setIsCmdKOpen((prev) => !prev);
+        setIsDrawerOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
