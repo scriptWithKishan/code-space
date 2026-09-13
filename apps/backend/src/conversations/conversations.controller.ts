@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -79,6 +80,17 @@ export class ConversationsController {
       this.getUserId(req),
       groupId,
       dto,
+    );
+  }
+
+  @Delete('group/:groupId')
+  async deleteGroup(
+    @Req() req: any,
+    @Param('groupId') groupId: string,
+  ) {
+    return this.conversationsService.deleteGroup(
+      this.getUserId(req),
+      groupId,
     );
   }
 }
