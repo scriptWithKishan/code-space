@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useAI } from '../context/AIContext';
+import { useSidebar } from '../context/SidebarContext';
 import {
   Sparkles,
   PanelLeftClose,
@@ -25,14 +26,10 @@ export default function PrimarySidebar() {
   const { theme, toggleTheme } = useTheme();
   const { workspaces, activeWorkspace, openCreateModal, loadingWorkspaces } = useWorkspace();
   const { openDrawer } = useAI();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { isSidebarOpen, toggleSidebar } = useSidebar();
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-
-  const toggleSidebar = () => {
-    setIsSidebarOpen((prev) => !prev);
-  };
 
   const visibleWorkspaces = expandedWorkspaces ? workspaces : workspaces.slice(0, 3);
   const overflowCount = workspaces.length - 3;
@@ -209,8 +206,8 @@ export default function PrimarySidebar() {
             {isSidebarOpen && <span className="text-xs font-semibold">Ask AI</span>}
           </div>
           {isSidebarOpen && (
-            <span className="text-[10px] font-mono text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded border border-border">
-              ⌘K
+            <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded-lg border border-border">
+              ⌘ K
             </span>
           )}
         </button>

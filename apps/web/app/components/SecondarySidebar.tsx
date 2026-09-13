@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -13,6 +13,8 @@ import {
   UserPlus,
   Settings,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   MessageSquare,
   Building2,
 } from 'lucide-react';
@@ -31,9 +33,14 @@ export default function SecondarySidebar() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const [expandedChannels, setExpandedChannels] = useState(false);
+
   if (!activeWorkspace) return null;
 
   const isAdmin = isWorkspaceAdmin(user, activeWorkspace);
+
+  const visibleChannels = expandedChannels ? groups : groups.slice(0, 3);
+  const channelOverflowCount = groups.length - 3;
 
   return (
     <aside className="relative flex flex-col w-60 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out shrink-0 z-10">
@@ -66,7 +73,7 @@ export default function SecondarySidebar() {
         <div>
           <div className="flex items-center justify-between px-1 mb-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Channels
+              Channels ({groups.length})
             </span>
             <button
               onClick={openCreateGroupModal}
@@ -89,33 +96,51 @@ export default function SecondarySidebar() {
                 <p className="text-[11px] text-muted-foreground">No channels created.</p>
               </div>
             ) : (
-              groups.map((group) => {
-                const isActive =
-                  activeGroup?.slug === group.slug ||
-                  pathname === `/w/${activeWorkspace.slug}/${group.slug}`;
+              <>
+                {visibleChannels.map((group) => {
+                  const isActive =
+                    activeGroup?.slug === group.slug ||
+                    pathname === `/w/${activeWorkspace.slug}/${group.slug}`;
 
-                return (
+                  return (
+                    <button
+                      key={group._id}
+                      onClick={() => router.push(`/w/${activeWorkspace.slug}/${group.slug}`)}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition text-left ${
+                        isActive
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-2xs'
+                          : 'text-sidebar-foreground hover:bg-muted/60'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <Hash className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <span className="truncate leading-tight">{group.name}</span>
+                      </div>
+                      {group.isDefault && (
+                        <span className="text-[9px] text-muted-foreground uppercase font-mono bg-muted/60 px-1 py-0.5 rounded">
+                          def
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+
+                {/* Channel Overflow Toggle (+ N More / Show Less) */}
+                {groups.length > 3 && (
                   <button
-                    key={group._id}
-                    onClick={() => router.push(`/w/${activeWorkspace.slug}/${group.slug}`)}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition text-left ${
-                      isActive
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-2xs'
-                        : 'text-sidebar-foreground hover:bg-muted/60'
-                    }`}
+                    onClick={() => setExpandedChannels((prev) => !prev)}
+                    className="flex w-full items-center justify-center space-x-1.5 rounded-xl py-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground transition mt-1"
+                    title={expandedChannels ? 'Show Less' : `Show ${channelOverflowCount} more channels`}
                   >
-                    <div className="flex items-center space-x-2 min-w-0">
-                      <Hash className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <span className="truncate leading-tight">{group.name}</span>
-                    </div>
-                    {group.isDefault && (
-                      <span className="text-[9px] text-muted-foreground uppercase font-mono bg-muted/60 px-1 py-0.5 rounded">
-                        def
-                      </span>
+                    <span>{expandedChannels ? 'Show Less' : `+ ${channelOverflowCount} More`}</span>
+                    {expandedChannels ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
                     )}
                   </button>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         </div>

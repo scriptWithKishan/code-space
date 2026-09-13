@@ -84,4 +84,14 @@ export class WorkspacesController {
   async getWorkspaceMembers(@Req() req: any, @Param('id') id: string) {
     return this.workspacesService.getWorkspaceMembers(this.getUserId(req), id);
   }
+
+  @Delete(':id/members/:memberUserId')
+  @UseGuards(JwtAuthGuard)
+  async removeMember(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('memberUserId') memberUserId: string,
+  ) {
+    return this.workspacesService.removeMember(this.getUserId(req), id, memberUserId);
+  }
 }

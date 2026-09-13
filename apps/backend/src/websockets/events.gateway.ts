@@ -53,9 +53,39 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage('joinWorkspace')
+  handleJoinWorkspace(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { workspaceId: string },
+  ) {
+    if (data && data.workspaceId) {
+      const room = `workspace_${data.workspaceId}`;
+      client.join(room);
+      this.logger.log(`[EventsGateway] Client ${client.id} joined room ${room}`);
+    }
+  }
+
+  @SubscribeMessage('leaveWorkspace')
+  handleLeaveWorkspace(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { workspaceId: string },
+  ) {
+    if (data && data.workspaceId) {
+      const room = `workspace_${data.workspaceId}`;
+      client.leave(room);
+      this.logger.log(`[EventsGateway] Client ${client.id} left room ${room}`);
+    }
+  }
+
   broadcastNewMessage(groupId: string, message: any) {
     const room = `group_${groupId}`;
     this.server.to(room).emit('message:received', message);
     this.logger.log(`[EventsGateway] Broadcasted message to room ${room}`);
+  }
+
+  broadcastMemberKicked(workspaceId: string, kickedUserId: string) {
+    const room = `workspace_${workspaceId}`;
+    this.server.to(room).emit('member:kicked', { workspaceId, kickedUserId });
+    this.logger.log(`[EventsGateway] Broadcasted member:kicked to room ${room} for user ${kickedUserId}`);
   }
 }

@@ -14,6 +14,7 @@ import { WorkspaceInvite, WorkspaceInviteDocument, InviteStatus } from '../schem
 import { ConversationGroup, ConversationGroupDocument } from '../schemas/conversation-group.schema.js';
 import { User, UserDocument } from '../schemas/user.schema.js';
 import { MailService } from '../mail/mail.service.js';
+import { EventsGateway } from '../websockets/events.gateway.js';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto.js';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto.js';
 import { InviteMemberDto } from './dto/invite-member.dto.js';
@@ -27,6 +28,7 @@ export class WorkspacesService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   private slugify(text: string): string {
@@ -142,8 +144,12 @@ export class WorkspacesService {
       throw new NotFoundException('Workspace not found');
     }
 
-    if (!workspace.ownerId.equals(userObjectId)) {
-      throw new ForbiddenException('Only the workspace owner can delete this workspace');
+    const member = workspace.members.find((m) => m.userId.equals(userObjectId));
+    const isAdmin =
+      workspace.ownerId.equals(userObjectId) || (member && member.role === WorkspaceRole.ADMIN);
+
+    if (!isAdmin) {
+      throw new ForbiddenException('Only workspace admins can delete this workspace');
     }
 
     await this.conversationGroupModel.deleteMany({ workspaceId: workspace._id });
@@ -151,6 +157,44 @@ export class WorkspacesService {
     await this.workspaceModel.findByIdAndDelete(workspaceId);
 
     return { success: true };
+  }
+
+  async removeMember(userId: string, workspaceId: string, memberUserId: string) {
+    const userObjectId = new Types.ObjectId(userId);
+    const targetObjectId = new Types.ObjectId(memberUserId);
+    const workspace = await this.workspaceModel.findById(workspaceId).exec();
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    const actingMember = workspace.members.find((m) => m.userId.equals(userObjectId));
+    const isActingAdmin =
+      workspace.ownerId.equals(userObjectId) ||
+      (actingMember && actingMember.role === WorkspaceRole.ADMIN);
+
+    if (!isActingAdmin) {
+      throw new ForbiddenException('Only workspace admins can kick members');
+    }
+
+    if (workspace.ownerId.equals(targetObjectId)) {
+      throw new BadRequestException('Cannot kick the workspace owner');
+    }
+
+    const memberIndex = workspace.members.findIndex((m) =>
+      m.userId.equals(targetObjectId),
+    );
+
+    if (memberIndex === -1) {
+      throw new NotFoundException('Member not found in workspace');
+    }
+
+    workspace.members.splice(memberIndex, 1);
+    await workspace.save();
+
+    this.eventsGateway.broadcastMemberKicked(workspaceId, memberUserId);
+
+    return this.getWorkspaceMembers(userId, workspaceId);
   }
 
   async inviteMember(userId: string, workspaceId: string, dto: InviteMemberDto): Promise<WorkspaceInviteDocument> {

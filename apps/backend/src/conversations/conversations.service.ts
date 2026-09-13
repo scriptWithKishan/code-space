@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,7 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ConversationGroup, ConversationGroupDocument } from '../schemas/conversation-group.schema.js';
 import { Message, MessageDocument } from '../schemas/message.schema.js';
-import { Workspace, WorkspaceDocument } from '../schemas/workspace.schema.js';
+import { Workspace, WorkspaceDocument, WorkspaceRole } from '../schemas/workspace.schema.js';
 import { CreateGroupDto } from './dto/create-group.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 import { EventsGateway } from '../websockets/events.gateway.js';
@@ -151,5 +152,35 @@ export class ConversationsService {
     const populatedMessage = await message.populate('senderId', 'name email avatarUrl');
     this.eventsGateway.broadcastNewMessage(groupId, populatedMessage);
     return populatedMessage;
+  }
+
+  async deleteGroup(userId: string, groupId: string) {
+    const group = await this.conversationGroupModel.findById(groupId).exec();
+    if (!group) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    const workspace = await this.workspaceModel.findById(group.workspaceId).exec();
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+    const member = workspace.members.find((m) => m.userId.equals(userObjectId));
+    const isAdmin =
+      workspace.ownerId.equals(userObjectId) || (member && member.role === WorkspaceRole.ADMIN);
+
+    if (!isAdmin) {
+      throw new ForbiddenException('Only workspace admins can delete channels');
+    }
+
+    if (group.isDefault) {
+      throw new BadRequestException('Cannot delete the default workspace channel');
+    }
+
+    await this.messageModel.deleteMany({ conversationId: group._id });
+    await this.conversationGroupModel.findByIdAndDelete(groupId);
+
+    return { success: true, deletedGroupId: group._id };
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import PrimarySidebar from '../../../components/PrimarySidebar';
 import SecondarySidebar from '../../../components/SecondarySidebar';
 import InviteMemberModal from '../../../components/InviteMemberModal';
@@ -13,7 +13,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useAI } from '../../../context/AIContext';
 import { isWorkspaceAdmin } from '../../../lib/utils';
 import { api } from '../../../lib/api';
-import { Hash, Send, Paperclip, Smile, Loader2, UserPlus, Sparkles } from 'lucide-react';
+import { Hash, Send, Paperclip, Smile, Loader2, UserPlus, Sparkles, Building2, UserX } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 
 export interface ChatMessage {
@@ -28,10 +28,11 @@ export interface ChatMessage {
 
 export default function GroupChatPage() {
   const params = useParams();
+  const router = useRouter();
   const workspaceSlug = params.workspaceSlug as string;
   const groupSlug = params.groupSlug as string;
 
-  const { activeWorkspace, setActiveWorkspaceBySlug } = useWorkspace();
+  const { activeWorkspace, setActiveWorkspaceBySlug, loadingWorkspaces } = useWorkspace();
   const { groups, activeGroup, setActiveGroupBySlug, openInviteModal } = useConversation();
   const { user } = useAuth();
   const { openDrawer } = useAI();
@@ -140,6 +141,37 @@ export default function GroupChatPage() {
       handleSendMessage();
     }
   };
+
+  if (loadingWorkspaces) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground text-xs">
+        Loading workspace...
+      </div>
+    );
+  }
+
+  if (!activeWorkspace) {
+    return (
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+        <PrimarySidebar />
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 mb-3 shadow-xs">
+            <UserX className="h-7 w-7" />
+          </div>
+          <h2 className="text-base font-bold text-foreground">You don't have access to this workspace</h2>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
+            You may have been kicked out of <span className="font-semibold text-foreground">"{workspaceSlug}"</span> or you do not have permission to view it.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-5 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-xs"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isAdmin = isWorkspaceAdmin(user, activeWorkspace);
 
