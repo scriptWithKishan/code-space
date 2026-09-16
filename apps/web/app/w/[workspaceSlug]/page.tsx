@@ -12,7 +12,7 @@ import { useConversation } from '../../context/ConversationContext';
 import { useAuth } from '../../context/AuthContext';
 import { useAI } from '../../context/AIContext';
 import { isWorkspaceAdmin } from '../../lib/utils';
-import { Sparkles, Hash, UserPlus, ArrowRight, Building2, MessageSquare, UserX } from 'lucide-react';
+import { Sparkles, Hash, UserPlus, ArrowRight, Building2, MessageSquare, UserX, Loader2 } from 'lucide-react';
 
 export default function WorkspacePage() {
   const params = useParams();
@@ -21,7 +21,7 @@ export default function WorkspacePage() {
 
   const { activeWorkspace, setActiveWorkspaceBySlug, loadingWorkspaces, workspaces, refreshWorkspaces } = useWorkspace();
   const { groups, openInviteModal, openCreateGroupModal } = useConversation();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { openDrawer } = useAI();
 
   useEffect(() => {
@@ -30,9 +30,10 @@ export default function WorkspacePage() {
     }
   }, [workspaceSlug, setActiveWorkspaceBySlug, workspaces]);
 
-  if (loadingWorkspaces) {
+  if (authLoading || loadingWorkspaces) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground text-xs">
+        <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" />
         Loading workspace...
       </div>
     );

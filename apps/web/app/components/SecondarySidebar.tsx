@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useConversation } from '../context/ConversationContext';
+import { useProject } from '../context/ProjectContext';
 import { useAuth } from '../context/AuthContext';
 import { isWorkspaceAdmin } from '../lib/utils';
 import {
@@ -15,8 +16,9 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  MessageSquare,
+  FolderKanban,
   Building2,
+  FolderPlus,
 } from 'lucide-react';
 
 export default function SecondarySidebar() {
@@ -30,10 +32,17 @@ export default function SecondarySidebar() {
     openInviteModal,
     openSettingsModal,
   } = useConversation();
+  const {
+    workspaceProjects,
+    loadingProjects,
+    openCreateProjectModal,
+  } = useProject();
+
   const router = useRouter();
   const pathname = usePathname();
 
   const [expandedChannels, setExpandedChannels] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState(false);
 
   if (!activeWorkspace) return null;
 
@@ -41,6 +50,9 @@ export default function SecondarySidebar() {
 
   const visibleChannels = expandedChannels ? groups : groups.slice(0, 3);
   const channelOverflowCount = groups.length - 3;
+
+  const visibleProjects = expandedProjects ? workspaceProjects : workspaceProjects.slice(0, 3);
+  const projectOverflowCount = workspaceProjects.length - 3;
 
   return (
     <aside className="relative flex flex-col w-60 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out shrink-0 z-10">
@@ -68,8 +80,9 @@ export default function SecondarySidebar() {
         </button>
       </div>
 
-      {/* Body: Conversation Groups / Channels List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+      {/* Body: Channels & Workspace Projects */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-5">
+        {/* Conversation Channels */}
         <div>
           <div className="flex items-center justify-between px-1 mb-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -125,7 +138,7 @@ export default function SecondarySidebar() {
                   );
                 })}
 
-                {/* Channel Overflow Toggle (+ N More / Show Less) */}
+                {/* Channel Overflow Toggle */}
                 {groups.length > 3 && (
                   <button
                     onClick={() => setExpandedChannels((prev) => !prev)}
@@ -134,6 +147,96 @@ export default function SecondarySidebar() {
                   >
                     <span>{expandedChannels ? 'Show Less' : `+ ${channelOverflowCount} More`}</span>
                     {expandedChannels ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Workspace Projects Section */}
+        <div>
+          <div className="flex items-center justify-between px-1 mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Projects ({workspaceProjects.length})
+            </span>
+            {isAdmin && (
+              <button
+                onClick={openCreateProjectModal}
+                title="Create New Project"
+                className="rounded-md p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-0.5">
+            {loadingProjects ? (
+              <div className="space-y-1 py-1">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-7 rounded-lg bg-muted/40 animate-pulse" />
+                ))}
+              </div>
+            ) : workspaceProjects.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-sidebar-border p-3 text-center">
+                <p className="text-[11px] text-muted-foreground mb-2">No projects yet.</p>
+                {isAdmin && (
+                  <button
+                    onClick={openCreateProjectModal}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline"
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" />
+                    Create Project
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                {visibleProjects.map((proj) => {
+                  const isActive = pathname === `/w/${activeWorkspace.slug}/p/${proj.slug}`;
+
+                  return (
+                    <button
+                      key={proj._id}
+                      onClick={() => router.push(`/w/${activeWorkspace.slug}/p/${proj.slug}`)}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition text-left ${
+                        isActive
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-2xs'
+                          : 'text-sidebar-foreground hover:bg-muted/60'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <FolderKanban className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <span className="truncate leading-tight">{proj.name}</span>
+                      </div>
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                          proj.status === 'COMPLETED'
+                            ? 'bg-blue-500'
+                            : proj.status === 'ARCHIVED'
+                            ? 'bg-slate-400'
+                            : 'bg-emerald-500'
+                        }`}
+                        title={`Status: ${proj.status}`}
+                      />
+                    </button>
+                  );
+                })}
+
+                {/* Projects Overflow Toggle */}
+                {workspaceProjects.length > 3 && (
+                  <button
+                    onClick={() => setExpandedProjects((prev) => !prev)}
+                    className="flex w-full items-center justify-center space-x-1.5 rounded-xl py-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground transition mt-1"
+                    title={expandedProjects ? 'Show Less' : `Show ${projectOverflowCount} more projects`}
+                  >
+                    <span>{expandedProjects ? 'Show Less' : `+ ${projectOverflowCount} More`}</span>
+                    {expandedProjects ? (
                       <ChevronUp className="h-3.5 w-3.5" />
                     ) : (
                       <ChevronDown className="h-3.5 w-3.5" />

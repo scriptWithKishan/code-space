@@ -7,7 +7,9 @@ import { WorkspaceProvider } from './context/WorkspaceContext';
 import { ConversationProvider } from './context/ConversationContext';
 import { AIProvider } from './context/AIContext';
 import { SidebarProvider } from './context/SidebarContext';
+import { ProjectProvider } from './context/ProjectContext';
 import CreateWorkspaceModal from './components/CreateWorkspaceModal';
+import CreateProjectModal from './components/CreateProjectModal';
 import AIChatDrawer from './components/AIChatDrawer';
 import CmdKModal from './components/CmdKModal';
 import AIFloatingTrigger from './components/AIFloatingTrigger';
@@ -37,17 +39,20 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <WorkspaceProvider>
-              <ConversationProvider>
-                <SidebarProvider>
-                  <AIProvider>
-                    {children}
-                    <CreateWorkspaceModal />
-                    <AIChatDrawer />
-                    <CmdKModal />
-                    <AIFloatingTrigger />
-                  </AIProvider>
-                </SidebarProvider>
-              </ConversationProvider>
+              <ProjectProvider>
+                <ConversationProvider>
+                  <SidebarProvider>
+                    <AIProvider>
+                      {children}
+                      <CreateWorkspaceModal />
+                      <CreateProjectModal />
+                      <AIChatDrawer />
+                      <CmdKModal />
+                      <AIFloatingTrigger />
+                    </AIProvider>
+                  </SidebarProvider>
+                </ConversationProvider>
+              </ProjectProvider>
             </WorkspaceProvider>
           </AuthProvider>
         </ThemeProvider>

@@ -9,6 +9,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
 import { ConversationsModule } from './conversations/conversations.module.js';
 import { WebSocketsModule } from './websockets/websockets.module.js';
 import { AiModule } from './ai/ai.module.js';
+import { ProjectsModule } from './projects/projects.module.js';
 
 export function validateEnvironment(config: Record<string, any>) {
   const requiredVars = ['MONGODB_URI', 'JWT_SECRET'];
@@ -48,6 +49,7 @@ export function validateEnvironment(config: Record<string, any>) {
     ConversationsModule,
     WebSocketsModule,
     AiModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

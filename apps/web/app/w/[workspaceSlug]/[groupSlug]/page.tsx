@@ -33,8 +33,8 @@ export default function GroupChatPage() {
   const groupSlug = params.groupSlug as string;
 
   const { activeWorkspace, setActiveWorkspaceBySlug, loadingWorkspaces } = useWorkspace();
-  const { groups, activeGroup, setActiveGroupBySlug, openInviteModal } = useConversation();
-  const { user } = useAuth();
+  const { groups, activeGroup, setActiveGroupBySlug, openInviteModal, loadingGroups } = useConversation();
+  const { user, loading: authLoading } = useAuth();
   const { openDrawer } = useAI();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -142,10 +142,11 @@ export default function GroupChatPage() {
     }
   };
 
-  if (loadingWorkspaces) {
+  if (authLoading || loadingWorkspaces || loadingGroups) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background text-muted-foreground text-xs">
-        Loading workspace...
+        <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" />
+        Loading workspace channel...
       </div>
     );
   }

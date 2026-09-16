@@ -39,7 +39,7 @@ interface WorkspaceContextType {
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -50,6 +50,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [kickedNotice, setKickedNotice] = useState<{ workspaceName: string } | null>(null);
 
   const refreshWorkspaces = useCallback(async () => {
+    if (authLoading) {
+      setLoadingWorkspaces(true);
+      return;
+    }
+
     if (!user) {
       setWorkspaces([]);
       setActiveWorkspace(null);
@@ -63,15 +68,26 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setWorkspaces(response.data);
 
       setActiveWorkspace((prev) => {
-        if (!prev) return null;
-        return response.data.find((w) => w.slug === prev.slug || w._id === prev._id) || null;
+        if (prev) {
+          const match = response.data.find((w) => w.slug === prev.slug || w._id === prev._id);
+          if (match) return match;
+        }
+        // Match by current URL pathname if prev active workspace is null
+        if (pathname) {
+          const match = pathname.match(/^\/w\/([^\/]+)/);
+          if (match && match[1]) {
+            const found = response.data.find((w) => w.slug === match[1]);
+            if (found) return found;
+          }
+        }
+        return response.data[0] || null;
       });
     } catch (error) {
       console.error('Failed to fetch workspaces', error);
     } finally {
       setLoadingWorkspaces(false);
     }
-  }, [user]);
+  }, [user, authLoading, pathname]);
 
   useEffect(() => {
     refreshWorkspaces();
@@ -85,7 +101,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (match && match[1]) {
       const slug = match[1];
       const found = workspaces.find((w) => w.slug === slug);
-      setActiveWorkspace(found || null);
+      setActiveWorkspace((prev) => (prev?._id === found?._id ? prev : (found || null)));
     } else if (!pathname.startsWith('/w/')) {
       setActiveWorkspace(null);
     }
@@ -122,8 +138,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const setActiveWorkspaceBySlug = useCallback(
     (slug: string) => {
-      const found = workspaces.find((w) => w.slug === slug);
-      setActiveWorkspace(found || null);
+      setActiveWorkspace((prev) => {
+        if (prev?.slug === slug) return prev;
+        const found = workspaces.find((w) => w.slug === slug);
+        return found || null;
+      });
     },
     [workspaces],
   );
