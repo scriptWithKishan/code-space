@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useProject } from '../context/ProjectContext';
 import { useAI } from '../context/AIContext';
 import { useSidebar } from '../context/SidebarContext';
 import {
@@ -19,20 +20,26 @@ import {
   ChevronDown,
   ChevronUp,
   Building2,
+  FolderKanban,
 } from 'lucide-react';
 
 export default function PrimarySidebar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { workspaces, activeWorkspace, openCreateModal, loadingWorkspaces } = useWorkspace();
+  const { recentProjects, loadingProjects } = useProject();
   const { openDrawer } = useAI();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   const visibleWorkspaces = expandedWorkspaces ? workspaces : workspaces.slice(0, 3);
-  const overflowCount = workspaces.length - 3;
+  const workspaceOverflowCount = workspaces.length - 3;
+
+  const visibleProjects = expandedProjects ? recentProjects : recentProjects.slice(0, 3);
+  const projectOverflowCount = recentProjects.length - 3;
 
   return (
     <aside
@@ -80,114 +87,218 @@ export default function PrimarySidebar() {
         )}
       </div>
 
-      {/* Workspace Section List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      {/* Navigation Sections */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {user && (
-          <div>
-            {isSidebarOpen && (
-              <div className="flex items-center justify-between px-1 mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Workspaces
-                </span>
-                <span className="text-[10px] text-muted-foreground font-mono bg-muted/60 px-1.5 py-0.5 rounded-md">
-                  {workspaces.length}
-                </span>
-              </div>
-            )}
-
-            {/* Workspaces List */}
-            <div className="space-y-0.5">
-              {loadingWorkspaces ? (
-                <div className="space-y-1 py-1">
-                  {[1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="h-7 rounded-lg bg-muted/40 animate-pulse flex items-center px-2"
-                    />
-                  ))}
+          <>
+            {/* Workspaces Section */}
+            <div>
+              {isSidebarOpen && (
+                <div className="flex items-center justify-between px-1 mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Workspaces
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono bg-muted/60 px-1.5 py-0.5 rounded-md">
+                    {workspaces.length}
+                  </span>
                 </div>
-              ) : workspaces.length === 0 ? (
-                isSidebarOpen && (
-                  <div className="rounded-xl border border-dashed border-sidebar-border p-2.5 text-center">
-                    <p className="text-xs text-muted-foreground">No workspaces yet.</p>
-                  </div>
-                )
-              ) : (
-                visibleWorkspaces.map((ws) => {
-                  const isActive = pathname === `/w/${ws.slug}` || pathname.startsWith(`/w/${ws.slug}/`);
-                  const firstChar = ws.name.charAt(0).toUpperCase();
+              )}
 
-                  return (
-                    <button
-                      key={ws._id}
-                      onClick={() => router.push(`/w/${ws.slug}`)}
-                      title={ws.name}
-                      className={`flex w-full items-center rounded-lg px-2 py-1.5 transition text-left ${
-                        isSidebarOpen ? 'justify-start space-x-2.5' : 'justify-center'
-                      } ${
-                        isActive
-                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-2xs border border-sidebar-accent/50'
-                          : 'text-sidebar-foreground hover:bg-muted/60'
-                      }`}
-                    >
+              <div className="space-y-0.5">
+                {loadingWorkspaces ? (
+                  <div className="space-y-1 py-1">
+                    {[1, 2].map((i) => (
                       <div
-                        className={`flex h-6.5 w-6.5 items-center justify-center rounded-md text-[11px] font-bold shrink-0 transition ${
+                        key={i}
+                        className="h-7 rounded-lg bg-muted/40 animate-pulse flex items-center px-2"
+                      />
+                    ))}
+                  </div>
+                ) : workspaces.length === 0 ? (
+                  isSidebarOpen && (
+                    <div className="rounded-xl border border-dashed border-sidebar-border p-2.5 text-center">
+                      <p className="text-xs text-muted-foreground">No workspaces yet.</p>
+                    </div>
+                  )
+                ) : (
+                  visibleWorkspaces.map((ws) => {
+                    const isActive = pathname === `/w/${ws.slug}` || pathname.startsWith(`/w/${ws.slug}/`);
+                    const firstChar = ws.name.charAt(0).toUpperCase();
+
+                    return (
+                      <button
+                        key={ws._id}
+                        onClick={() => router.push(`/w/${ws.slug}`)}
+                        title={ws.name}
+                        className={`flex w-full items-center rounded-lg px-2 py-1.5 transition text-left ${
+                          isSidebarOpen ? 'justify-start space-x-2.5' : 'justify-center'
+                        } ${
                           isActive
-                            ? 'bg-primary text-primary-foreground shadow-xs'
-                            : 'bg-muted/80 text-foreground border border-sidebar-border'
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-2xs border border-sidebar-accent/50'
+                            : 'text-sidebar-foreground hover:bg-muted/60'
                         }`}
                       >
-                        {firstChar}
-                      </div>
-                      {isSidebarOpen && (
-                        <div className="truncate min-w-0 flex-1">
-                          <p className="text-xs font-medium truncate leading-none">{ws.name}</p>
+                        <div
+                          className={`flex h-6.5 w-6.5 items-center justify-center rounded-md text-[11px] font-bold shrink-0 transition ${
+                            isActive
+                              ? 'bg-primary text-primary-foreground shadow-xs'
+                              : 'bg-muted/80 text-foreground border border-sidebar-border'
+                          }`}
+                        >
+                          {firstChar}
                         </div>
-                      )}
-                    </button>
-                  );
-                })
-              )}
+                        {isSidebarOpen && (
+                          <div className="truncate min-w-0 flex-1">
+                            <p className="text-xs font-medium truncate leading-none">{ws.name}</p>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
 
-              {/* Overflow Toggle (+ N More / Show Less) */}
-              {workspaces.length > 3 && (
-                <button
-                  onClick={() => setExpandedWorkspaces((prev) => !prev)}
-                  className={`flex w-full items-center justify-center rounded-xl py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground transition ${
-                    isSidebarOpen ? 'px-2.5 space-x-1.5' : 'px-1'
-                  }`}
-                  title={expandedWorkspaces ? 'Show Less' : `Show ${overflowCount} more workspaces`}
-                >
-                  {isSidebarOpen ? (
-                    <>
-                      <span>{expandedWorkspaces ? 'Show Less' : `+ ${overflowCount} More`}</span>
-                      {expandedWorkspaces ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-[10px] font-bold">
-                      {expandedWorkspaces ? 'Less' : `+${overflowCount}`}
-                    </span>
-                  )}
-                </button>
-              )}
+                {/* Workspace Overflow Toggle (+ N More / Show Less) */}
+                {workspaces.length > 3 && (
+                  <button
+                    onClick={() => setExpandedWorkspaces((prev) => !prev)}
+                    className={`flex w-full items-center justify-center rounded-xl py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground transition ${
+                      isSidebarOpen ? 'px-2.5 space-x-1.5' : 'px-1'
+                    }`}
+                    title={expandedWorkspaces ? 'Show Less' : `Show ${workspaceOverflowCount} more workspaces`}
+                  >
+                    {isSidebarOpen ? (
+                      <>
+                        <span>{expandedWorkspaces ? 'Show Less' : `+ ${workspaceOverflowCount} More`}</span>
+                        {expandedWorkspaces ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-bold">
+                        {expandedWorkspaces ? 'Less' : `+${workspaceOverflowCount}`}
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Create Workspace Button */}
+              <button
+                onClick={openCreateModal}
+                title="Create Workspace"
+                className={`flex w-full items-center justify-center rounded-lg border border-dashed border-sidebar-border bg-sidebar hover:bg-muted/60 text-sidebar-foreground py-1.5 mt-1.5 transition ${
+                  isSidebarOpen ? 'px-2.5 space-x-2' : 'px-1.5'
+                }`}
+              >
+                <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
+                {isSidebarOpen && <span className="text-xs font-medium">Create Workspace</span>}
+              </button>
             </div>
 
-            {/* Create Workspace Button */}
-            <button
-              onClick={openCreateModal}
-              title="Create Workspace"
-              className={`flex w-full items-center justify-center rounded-lg border border-dashed border-sidebar-border bg-sidebar hover:bg-muted/60 text-sidebar-foreground py-1.5 mt-1.5 transition ${
-                isSidebarOpen ? 'px-2.5 space-x-2' : 'px-1.5'
-              }`}
-            >
-              <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
-              {isSidebarOpen && <span className="text-xs font-medium">Create Workspace</span>}
-            </button>
-          </div>
+            {/* Global Recent Projects Section */}
+            <div>
+              {isSidebarOpen && (
+                <div className="flex items-center justify-between px-1 mb-2 pt-2 border-t border-sidebar-border/40">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Recent Projects
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono bg-muted/60 px-1.5 py-0.5 rounded-md">
+                    {recentProjects.length}
+                  </span>
+                </div>
+              )}
+
+              <div className="space-y-0.5">
+                {loadingProjects ? (
+                  <div className="space-y-1 py-1">
+                    {[1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="h-7 rounded-lg bg-muted/40 animate-pulse flex items-center px-2"
+                      />
+                    ))}
+                  </div>
+                ) : recentProjects.length === 0 ? (
+                  isSidebarOpen && (
+                    <div className="rounded-xl border border-dashed border-sidebar-border p-2.5 text-center">
+                      <p className="text-xs text-muted-foreground">No recent projects.</p>
+                    </div>
+                  )
+                ) : (
+                  visibleProjects.map((proj) => {
+                    const wsMatch = workspaces.find((w) => w._id === proj.workspaceId);
+                    const wsSlug = wsMatch?.slug || '';
+                    const isActive = pathname.includes(`/p/${proj.slug}`);
+
+                    return (
+                      <button
+                        key={proj._id}
+                        onClick={() => {
+                          if (wsSlug) router.push(`/w/${wsSlug}/p/${proj.slug}`);
+                        }}
+                        title={`${proj.name} (${wsMatch?.name || 'Workspace'})`}
+                        className={`flex w-full items-center rounded-lg px-2 py-1.5 transition text-left ${
+                          isSidebarOpen ? 'justify-start space-x-2.5' : 'justify-center'
+                        } ${
+                          isActive
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-2xs border border-sidebar-accent/50'
+                            : 'text-sidebar-foreground hover:bg-muted/60'
+                        }`}
+                      >
+                        <div
+                          className={`flex h-6.5 w-6.5 items-center justify-center rounded-md text-xs shrink-0 transition ${
+                            isActive
+                              ? 'bg-primary text-primary-foreground shadow-xs'
+                              : 'bg-muted/80 text-foreground border border-sidebar-border'
+                          }`}
+                        >
+                          <FolderKanban className="h-3.5 w-3.5" />
+                        </div>
+                        {isSidebarOpen && (
+                          <div className="truncate min-w-0 flex-1">
+                            <p className="text-xs font-medium truncate leading-none">{proj.name}</p>
+                            {wsMatch && (
+                              <p className="text-[9px] text-muted-foreground truncate mt-0.5">
+                                {wsMatch.name}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+
+                {/* Projects Overflow Toggle (+ N More / Show Less) */}
+                {recentProjects.length > 3 && (
+                  <button
+                    onClick={() => setExpandedProjects((prev) => !prev)}
+                    className={`flex w-full items-center justify-center rounded-xl py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground transition ${
+                      isSidebarOpen ? 'px-2.5 space-x-1.5' : 'px-1'
+                    }`}
+                    title={expandedProjects ? 'Show Less' : `Show ${projectOverflowCount} more projects`}
+                  >
+                    {isSidebarOpen ? (
+                      <>
+                        <span>{expandedProjects ? 'Show Less' : `+ ${projectOverflowCount} More`}</span>
+                        {expandedProjects ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-bold">
+                        {expandedProjects ? 'Less' : `+${projectOverflowCount}`}
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
 

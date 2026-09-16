@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useWorkspace } from './WorkspaceContext';
 import { api } from '../lib/api';
 import { useRouter } from 'next/navigation';
@@ -58,15 +58,15 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const openDrawer = () => setIsDrawerOpen(true);
-  const closeDrawer = () => setIsDrawerOpen(false);
-  const toggleDrawer = () => setIsDrawerOpen((prev) => !prev);
+  const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
+  const toggleDrawer = useCallback(() => setIsDrawerOpen((prev) => !prev), []);
 
-  const openCmdK = () => setIsCmdKOpen(true);
-  const closeCmdK = () => setIsCmdKOpen(false);
-  const toggleCmdK = () => setIsCmdKOpen((prev) => !prev);
+  const openCmdK = useCallback(() => setIsCmdKOpen(true), []);
+  const closeCmdK = useCallback(() => setIsCmdKOpen(false), []);
+  const toggleCmdK = useCallback(() => setIsCmdKOpen((prev) => !prev), []);
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     setMessages([
       {
         id: 'welcome-1',
@@ -75,83 +75,98 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         timestamp: new Date(),
       },
     ]);
-  };
+  }, []);
 
-  const executePrompt = async (promptText: string) => {
-    if (!promptText.trim() || executing) return;
+  const executePrompt = useCallback(
+    async (promptText: string) => {
+      if (!promptText.trim() || executing) return;
 
-    const userMsg: AIMessage = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text: promptText.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setExecuting(true);
-
-    try {
-      const response = await api.post<{
-        summary: string;
-        actionsExecuted: Array<{ actionType: string; targetId?: string; summary: string }>;
-        auditLogId: string;
-        createdWorkspaceSlug?: string;
-      }>('/ai/execute', {
-        prompt: promptText.trim(),
-        workspaceId: activeWorkspace?._id,
-      });
-
-      const aiMsg: AIMessage = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: response.data.summary,
-        actionsExecuted: response.data.actionsExecuted,
+      const userMsg: AIMessage = {
+        id: `user-${Date.now()}`,
+        sender: 'user',
+        text: promptText.trim(),
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [...prev, userMsg]);
+      setExecuting(true);
 
-      // Live update workspace context
-      await refreshWorkspaces();
+      try {
+        const response = await api.post<{
+          summary: string;
+          actionsExecuted: Array<{ actionType: string; targetId?: string; summary: string }>;
+          auditLogId: string;
+          createdWorkspaceSlug?: string;
+        }>('/ai/execute', {
+          prompt: promptText.trim(),
+          workspaceId: activeWorkspace?._id,
+        });
 
-      // Navigate if a new workspace was created
-      if (response.data.createdWorkspaceSlug) {
-        router.push(`/w/${response.data.createdWorkspaceSlug}`);
+        const aiMsg: AIMessage = {
+          id: `ai-${Date.now()}`,
+          sender: 'ai',
+          text: response.data.summary,
+          actionsExecuted: response.data.actionsExecuted,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, aiMsg]);
+
+        // Live update workspace context
+        await refreshWorkspaces();
+
+        // Navigate if a new workspace was created
+        if (response.data.createdWorkspaceSlug) {
+          router.push(`/w/${response.data.createdWorkspaceSlug}`);
+        }
+      } catch (error: any) {
+        console.error('AI execution error', error);
+        const errorMsg: AIMessage = {
+          id: `ai-err-${Date.now()}`,
+          sender: 'ai',
+          text: error?.response?.data?.message || 'Failed to process AI prompt. Please try again.',
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      } finally {
+        setExecuting(false);
       }
-    } catch (error: any) {
-      console.error('AI execution error', error);
-      const errorMsg: AIMessage = {
-        id: `ai-err-${Date.now()}`,
-        sender: 'ai',
-        text: error?.response?.data?.message || 'Failed to process AI prompt. Please try again.',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setExecuting(false);
-    }
-  };
-
-  return (
-    <AIContext.Provider
-      value={{
-        isDrawerOpen,
-        isCmdKOpen,
-        messages,
-        executing,
-        openDrawer,
-        closeDrawer,
-        toggleDrawer,
-        openCmdK,
-        closeCmdK,
-        toggleCmdK,
-        executePrompt,
-        clearHistory,
-      }}
-    >
-      {children}
-    </AIContext.Provider>
+    },
+    [activeWorkspace?._id, executing, refreshWorkspaces, router],
   );
+
+  const contextValue = React.useMemo(
+    () => ({
+      isDrawerOpen,
+      isCmdKOpen,
+      messages,
+      executing,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
+      openCmdK,
+      closeCmdK,
+      toggleCmdK,
+      executePrompt,
+      clearHistory,
+    }),
+    [
+      isDrawerOpen,
+      isCmdKOpen,
+      messages,
+      executing,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
+      openCmdK,
+      closeCmdK,
+      toggleCmdK,
+      executePrompt,
+      clearHistory,
+    ],
+  );
+
+  return <AIContext.Provider value={contextValue}>{children}</AIContext.Provider>;
 };
 
 export const useAI = () => {

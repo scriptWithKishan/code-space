@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useWorkspace } from './WorkspaceContext';
+import { useAuth } from './AuthContext';
 import { api } from '../lib/api';
 
 export interface ConversationGroup {
@@ -37,11 +38,12 @@ interface ConversationContextType {
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
 
 export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, loadingWorkspaces } = useWorkspace();
+  const { loading: authLoading } = useAuth();
   const pathname = usePathname();
   const [groups, setGroups] = useState<ConversationGroup[]>([]);
   const [activeGroup, setActiveGroup] = useState<ConversationGroup | null>(null);
-  const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
+  const [loadingGroups, setLoadingGroups] = useState<boolean>(true);
 
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState<boolean>(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
@@ -61,13 +63,19 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   useEffect(() => {
+    if (authLoading || loadingWorkspaces) {
+      setLoadingGroups(true);
+      return;
+    }
+
     if (activeWorkspace) {
       fetchGroups(activeWorkspace.slug);
     } else {
       setGroups([]);
       setActiveGroup(null);
+      setLoadingGroups(false);
     }
-  }, [activeWorkspace, fetchGroups]);
+  }, [activeWorkspace, loadingWorkspaces, authLoading, fetchGroups]);
 
   // Sync activeGroup with URL route: /w/[workspaceSlug]/[groupSlug]
   useEffect(() => {
@@ -91,45 +99,70 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     [groups],
   );
 
-  const createGroup = async (name: string, description?: string): Promise<ConversationGroup> => {
-    if (!activeWorkspace) {
-      throw new Error('No active workspace selected');
-    }
+  const openCreateGroupModal = useCallback(() => setIsCreateGroupModalOpen(true), []);
+  const closeCreateGroupModal = useCallback(() => setIsCreateGroupModalOpen(false), []);
+  const openInviteModal = useCallback(() => setIsInviteModalOpen(true), []);
+  const closeInviteModal = useCallback(() => setIsInviteModalOpen(false), []);
+  const openSettingsModal = useCallback(() => setIsSettingsModalOpen(true), []);
+  const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
 
-    const response = await api.post<ConversationGroup>(`/conversations/workspace/${activeWorkspace._id}`, {
-      name,
-      description,
-    });
-    const newGroup = response.data;
-    setGroups((prev) => [...prev, newGroup]);
-    setActiveGroup(newGroup);
-    setIsCreateGroupModalOpen(false);
-    return newGroup;
-  };
+  const createGroup = useCallback(
+    async (name: string, description?: string): Promise<ConversationGroup> => {
+      if (!activeWorkspace) {
+        throw new Error('No active workspace selected');
+      }
 
-  return (
-    <ConversationContext.Provider
-      value={{
-        groups,
-        activeGroup,
-        loadingGroups,
-        isCreateGroupModalOpen,
-        isInviteModalOpen,
-        isSettingsModalOpen,
-        fetchGroups,
-        createGroup,
-        setActiveGroupBySlug,
-        openCreateGroupModal: () => setIsCreateGroupModalOpen(true),
-        closeCreateGroupModal: () => setIsCreateGroupModalOpen(false),
-        openInviteModal: () => setIsInviteModalOpen(true),
-        closeInviteModal: () => setIsInviteModalOpen(false),
-        openSettingsModal: () => setIsSettingsModalOpen(true),
-        closeSettingsModal: () => setIsSettingsModalOpen(false),
-      }}
-    >
-      {children}
-    </ConversationContext.Provider>
+      const response = await api.post<ConversationGroup>(`/conversations/workspace/${activeWorkspace._id}`, {
+        name,
+        description,
+      });
+      const newGroup = response.data;
+      setGroups((prev) => [...prev, newGroup]);
+      setActiveGroup(newGroup);
+      setIsCreateGroupModalOpen(false);
+      return newGroup;
+    },
+    [activeWorkspace],
   );
+
+  const contextValue = React.useMemo(
+    () => ({
+      groups,
+      activeGroup,
+      loadingGroups,
+      isCreateGroupModalOpen,
+      isInviteModalOpen,
+      isSettingsModalOpen,
+      fetchGroups,
+      createGroup,
+      setActiveGroupBySlug,
+      openCreateGroupModal,
+      closeCreateGroupModal,
+      openInviteModal,
+      closeInviteModal,
+      openSettingsModal,
+      closeSettingsModal,
+    }),
+    [
+      groups,
+      activeGroup,
+      loadingGroups,
+      isCreateGroupModalOpen,
+      isInviteModalOpen,
+      isSettingsModalOpen,
+      fetchGroups,
+      createGroup,
+      setActiveGroupBySlug,
+      openCreateGroupModal,
+      closeCreateGroupModal,
+      openInviteModal,
+      closeInviteModal,
+      openSettingsModal,
+      closeSettingsModal,
+    ],
+  );
+
+  return <ConversationContext.Provider value={contextValue}>{children}</ConversationContext.Provider>;
 };
 
 export const useConversation = () => {

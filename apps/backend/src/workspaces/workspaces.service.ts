@@ -88,13 +88,17 @@ export class WorkspacesService {
       .find({
         $or: [{ ownerId: userObjectId }, { 'members.userId': userObjectId }],
       })
+      .populate('members.userId', 'name email avatarUrl')
       .sort({ updatedAt: -1 })
       .exec();
   }
 
   async getWorkspaceBySlug(userId: string, slug: string): Promise<WorkspaceDocument> {
     const userObjectId = new Types.ObjectId(userId);
-    const workspace = await this.workspaceModel.findOne({ slug }).exec();
+    const workspace = await this.workspaceModel
+      .findOne({ slug })
+      .populate('members.userId', 'name email avatarUrl')
+      .exec();
 
     if (!workspace) {
       throw new NotFoundException(`Workspace with slug "${slug}" not found`);
@@ -102,7 +106,10 @@ export class WorkspacesService {
 
     const isMember =
       workspace.ownerId.equals(userObjectId) ||
-      workspace.members.some((m) => m.userId.equals(userObjectId));
+      workspace.members.some((m: any) => {
+        const uId = m.userId?._id ? m.userId._id.toString() : m.userId?.toString();
+        return uId === userId;
+      });
 
     if (!isMember) {
       throw new ForbiddenException('You do not have access to this workspace');
