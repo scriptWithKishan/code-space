@@ -10,6 +10,8 @@ import WorkspaceSettingsModal from '../../../../components/WorkspaceSettingsModa
 import ProjectHeader from '../../../../components/ProjectHeader';
 import TopStatsBanner from '../../../../components/TopStatsBanner';
 import ProjectSettingsTab from '../../../../components/ProjectSettingsTab';
+import AddTaskModal from '../../../../components/AddTaskModal';
+import BorderlessTaskTable from '../../../../components/BorderlessTaskTable';
 import { useWorkspace } from '../../../../context/WorkspaceContext';
 import { useProject, ProjectStats, ProjectMember } from '../../../../context/ProjectContext';
 import { useAuth } from '../../../../context/AuthContext';
@@ -27,8 +29,17 @@ import {
   ChevronDown,
   ChevronRight,
   UserMinus,
+  Calendar,
 } from 'lucide-react';
+import TaskDetailModal, { TaskItem } from '../../../../components/TaskDetailModal';
 import { api } from '../../../../lib/api';
+
+const priorityCardStyles: Record<string, string> = {
+  LOW: 'border-slate-500/30 bg-slate-500/5 hover:border-slate-500/60',
+  MEDIUM: 'border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60',
+  HIGH: 'border-amber-500/30 bg-amber-500/5 hover:border-amber-500/60',
+  URGENT: 'border-rose-500/30 bg-rose-500/10 hover:border-rose-500/60',
+};
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -47,12 +58,17 @@ export default function ProjectDetailPage() {
   const [isTasksOverviewCollapsed, setIsTasksOverviewCollapsed] = useState<boolean>(false);
   const [kickingMemberId, setKickingMemberId] = useState<string | null>(null);
 
-  // Quick Task Creation state
+  // Overview Tasks state
+  const [overviewTasks, setOverviewTasks] = useState<TaskItem[]>([]);
+  const [loadingOverviewTasks, setLoadingOverviewTasks] = useState<boolean>(true);
+
+  // Task Detail Modal state
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
+
+  // Add Task Modal state
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDesc, setTaskDesc] = useState('');
-  const [taskPriority, setTaskPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
-  const [creatingTask, setCreatingTask] = useState(false);
 
   useEffect(() => {
     if (workspaceSlug) {
@@ -76,11 +92,25 @@ export default function ProjectDetailPage() {
     }
   }, [projectId, getProjectStats]);
 
+  const fetchOverviewTasks = useCallback(async (showLoading = false) => {
+    if (!projectId) return;
+    try {
+      if (showLoading) setLoadingOverviewTasks(true);
+      const res = await api.get(`/projects/${projectId}/tasks?limit=100`);
+      setOverviewTasks(res.data.tasks || []);
+    } catch (err) {
+      console.error('Failed to fetch overview tasks', err);
+    } finally {
+      setLoadingOverviewTasks(false);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     if (projectId) {
       fetchStats(true);
+      fetchOverviewTasks(true);
     }
-  }, [projectId, fetchStats]);
+  }, [projectId, fetchStats, fetchOverviewTasks]);
 
   if (authLoading || loadingWorkspaces || loadingProjects) {
     return (
@@ -129,32 +159,6 @@ export default function ProjectDetailPage() {
     return { _id: String(m), name: 'Member', email: '' };
   });
 
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!taskTitle.trim()) return;
-
-    try {
-      setCreatingTask(true);
-      // Create task endpoint integration
-      await api.post('/tasks', {
-        projectId: targetProject._id,
-        workspaceId: activeWorkspace._id,
-        title: taskTitle.trim(),
-        description: taskDesc.trim() || undefined,
-        priority: taskPriority,
-      });
-
-      setTaskTitle('');
-      setTaskDesc('');
-      setIsAddTaskModalOpen(false);
-      await fetchStats();
-      await refreshProjects();
-    } catch (err) {
-      console.error('Failed to create task', err);
-    } finally {
-      setCreatingTask(false);
-    }
-  };
 
   const handleKickMember = async (memberUserId: string) => {
     if (!targetProject) return;
@@ -188,12 +192,12 @@ export default function ProjectDetailPage() {
               onAddTask={() => setIsAddTaskModalOpen(true)}
             />
 
-            {/* Embedded Top Stats Banner */}
-            <TopStatsBanner stats={stats} loading={loadingStats} />
-
             {/* Tab Views */}
             {activeTab === 'tasks' && (
               <div className="space-y-6">
+                {/* Embedded Top Stats Banner */}
+                <TopStatsBanner stats={stats} loading={loadingStats} />
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <button
@@ -229,9 +233,11 @@ export default function ProjectDetailPage() {
                       { key: 'DONE', label: 'Completed', icon: CheckCircle2, count: stats?.statusBreakdown?.DONE || 0, badge: 'bg-emerald-500/10 text-emerald-500' },
                     ].map((col) => {
                       const ColIcon = col.icon;
+                      const stageTasks = overviewTasks.filter((t) => t.status === col.key);
+
                       return (
-                        <div key={col.key} className="rounded-2xl border border-border/60 bg-card p-4 space-y-3 shadow-xs">
-                          <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                        <div key={col.key} className="rounded-2xl border border-border/60 bg-card p-4 space-y-3 shadow-xs flex flex-col">
+                          <div className="flex items-center justify-between pb-2 border-b border-border/40 shrink-0">
                             <div className="flex items-center gap-2">
                               <div className={`p-1.5 rounded-lg ${col.badge}`}>
                                 <ColIcon className="h-4 w-4" />
@@ -242,16 +248,70 @@ export default function ProjectDetailPage() {
                               {col.count}
                             </span>
                           </div>
-                          <div className="min-h-[100px] flex items-center justify-center text-center p-4 rounded-xl border border-dashed border-border/50 bg-muted/20">
-                            <p className="text-[11px] text-muted-foreground">
-                              {col.count === 0 ? 'No tasks in this stage' : `${col.count} task(s)`}
-                            </p>
+
+                          {/* Scrollable Tasks Container inside Card */}
+                          <div className="max-h-[280px] min-h-[120px] overflow-y-auto space-y-1.5 pr-1 flex-1">
+                            {loadingOverviewTasks ? (
+                              <div className="space-y-1.5 py-1">
+                                {[1, 2, 3].map((i) => (
+                                  <div key={i} className="h-9 rounded-xl bg-muted/40 animate-pulse border border-border/30" />
+                                ))}
+                              </div>
+                            ) : stageTasks.length === 0 ? (
+                              <div className="h-28 flex flex-col items-center justify-center text-center p-3 rounded-xl border border-dashed border-border/50 bg-muted/20">
+                                <p className="text-[11px] text-muted-foreground">No tasks in this stage</p>
+                              </div>
+                            ) : (
+                              stageTasks.map((task) => (
+                                <div
+                                  key={task._id}
+                                  onClick={() => {
+                                    setSelectedTaskId(task._id);
+                                    setIsDetailModalOpen(true);
+                                  }}
+                                  className={`group flex items-center justify-between gap-2.5 rounded-xl border px-3 py-2 shadow-2xs hover:shadow-xs transition cursor-pointer ${
+                                    priorityCardStyles[task.priority] || priorityCardStyles.MEDIUM
+                                  }`}
+                                  title={task.title}
+                                >
+                                  <span className="text-xs font-medium text-foreground group-hover:text-primary transition truncate min-w-0 flex-1">
+                                    {task.title}
+                                  </span>
+
+                                  {task.dueDate && (
+                                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-mono shrink-0">
+                                      <Calendar className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                                      <span>
+                                        {new Date(task.dueDate).toLocaleDateString(undefined, {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        })}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
+
+                {/* Borderless Task Table Component */}
+                <div className="pt-2">
+                  <BorderlessTaskTable
+                    key={refreshKey}
+                    projectId={targetProject._id}
+                    isAdmin={isAdmin}
+                    currentUserId={user?.id || (user as any)?._id || ''}
+                    onStatsRefresh={() => {
+                      fetchStats();
+                      fetchOverviewTasks();
+                    }}
+                  />
+                </div>
               </div>
             )}
 
@@ -309,83 +369,41 @@ export default function ProjectDetailPage() {
         </main>
       </div>
 
-      {/* Quick Add Task Modal */}
-      {isAddTaskModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground">Create New Task</h3>
-              <button
-                onClick={() => setIsAddTaskModalOpen(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
-              >
-                ×
-              </button>
-            </div>
+      {/* Add Task Modal */}
+      <AddTaskModal
+        isOpen={isAddTaskModalOpen}
+        onClose={() => setIsAddTaskModalOpen(false)}
+        projectId={targetProject._id}
+        projectMembers={membersList.map((m) => ({
+          id: m._id,
+          name: m.name,
+          email: m.email,
+          avatarUrl: m.avatarUrl,
+        }))}
+        onTaskCreated={async () => {
+          await fetchStats();
+          await fetchOverviewTasks();
+          await refreshProjects();
+          setRefreshKey((prev) => prev + 1);
+        }}
+      />
 
-            <form onSubmit={handleCreateTask} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Task Title <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="e.g. Implement Auth REST endpoints"
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Description</label>
-                <textarea
-                  value={taskDesc}
-                  onChange={(e) => setTaskDesc(e.target.value)}
-                  placeholder="Task scope details..."
-                  rows={3}
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Priority</label>
-                <select
-                  value={taskPriority}
-                  onChange={(e) => setTaskPriority(e.target.value as any)}
-                  className="w-full rounded-xl border border-input bg-background px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="LOW">LOW</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="HIGH">HIGH</option>
-                  <option value="URGENT">URGENT</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setIsAddTaskModalOpen(false)}
-                  disabled={creatingTask}
-                  className="rounded-xl border border-border bg-background px-4 py-2 text-xs font-medium text-foreground hover:bg-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creatingTask || !taskTitle.trim()}
-                  className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {creatingTask ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  <span>Create Task</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Task Detail Modal for Overview */}
+      <TaskDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedTaskId(null);
+        }}
+        taskId={selectedTaskId}
+        isAdmin={isAdmin}
+        currentUserId={user?.id || (user as any)?._id || ''}
+        onTaskUpdated={() => {
+          fetchStats();
+          fetchOverviewTasks();
+          setRefreshKey((prev) => prev + 1);
+        }}
+      />
 
       <InviteMemberModal />
       <CreateGroupModal />

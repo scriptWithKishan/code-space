@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,8 +12,10 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { AiAuditLog, AiAuditLogDocument, AiAuditLogStatus, ExecutedAction } from '../schemas/ai-audit-log.schema.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 import { ProjectsService } from '../projects/projects.service.js';
+import { TasksService } from '../tasks/tasks.service.js';
 import { Workspace, WorkspaceDocument } from '../schemas/workspace.schema.js';
 import { Project, ProjectDocument } from '../schemas/project.schema.js';
+import { Task, TaskDocument, TaskPriority, TaskStatus } from '../schemas/task.schema.js';
 import { User, UserDocument } from '../schemas/user.schema.js';
 import { EventsGateway } from '../websockets/events.gateway.js';
 
@@ -25,9 +28,11 @@ export class AiService {
     @InjectModel(AiAuditLog.name) private readonly aiAuditLogModel: Model<AiAuditLogDocument>,
     @InjectModel(Workspace.name) private readonly workspaceModel: Model<WorkspaceDocument>,
     @InjectModel(Project.name) private readonly projectModel: Model<ProjectDocument>,
+    @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly workspacesService: WorkspacesService,
     private readonly projectsService: ProjectsService,
+    private readonly tasksService: TasksService,
     private readonly eventsGateway: EventsGateway,
     private readonly configService: ConfigService,
   ) {
@@ -80,6 +85,58 @@ export class AiService {
       actions.push({
         tool: 'deleteProject',
         args: { projectNameOrId: deleteProjMatch[1].trim() },
+      });
+    }
+
+    // Match "create task [title]"
+    const createTaskMatch = prompt.match(/create\s+(?:an?\s+)?(?:urgent\s+|high\s+priority\s+)?task\s+(?:named\s+|called\s+)?["']?([^"',.]+?)["']?(?:\s+(?:in|for)\s+project\s+["']?([^"']+)["']?)?/i);
+    if (createTaskMatch) {
+      const isUrgent = /urgent/i.test(prompt);
+      const isHigh = /high\s+priority/i.test(prompt);
+      const priority = isUrgent ? 'URGENT' : isHigh ? 'HIGH' : 'MEDIUM';
+      
+      let assigneeNameOrEmail: string | undefined = undefined;
+      const assignMatch = prompt.match(/assigned\s+to\s+["']?([^"',.]+?)["']?/i);
+      if (assignMatch) assigneeNameOrEmail = assignMatch[1].trim();
+
+      actions.push({
+        tool: 'createTask',
+        args: {
+          title: createTaskMatch[1].trim(),
+          projectNameOrId: createTaskMatch[2]?.trim(),
+          priority,
+          assigneeNameOrEmail,
+        },
+      });
+    }
+
+    // Match "update task [title]" / "change status of task [title] to [status]"
+    const updateTaskMatch = prompt.match(/(?:update\s+task|change\s+status\s+of\s+task|set\s+status\s+of\s+task)\s+["']?([^"',.]+?)["']?\s+to\s+["']?([^"',.]+?)["']?$/i);
+    if (updateTaskMatch) {
+      const title = updateTaskMatch[1].trim();
+      const statusRaw = updateTaskMatch[2].trim().toUpperCase().replace(/\s+/g, '_');
+      let status: string | undefined = undefined;
+      if (['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'].includes(statusRaw)) {
+        status = statusRaw;
+      } else if (statusRaw === 'COMPLETED') {
+        status = 'DONE';
+      }
+
+      actions.push({
+        tool: 'updateTask',
+        args: {
+          taskTitleOrId: title,
+          status,
+        },
+      });
+    }
+
+    // Match "delete task [title]"
+    const deleteTaskMatch = prompt.match(/delete\s+task\s+["']?([^"',.]+?)["']?$/i);
+    if (deleteTaskMatch) {
+      actions.push({
+        tool: 'deleteTask',
+        args: { taskTitleOrId: deleteTaskMatch[1].trim() },
       });
     }
 
@@ -201,6 +258,50 @@ export class AiService {
                         required: ['projectNameOrId', 'memberEmailsOrNames'],
                       },
                     },
+                    {
+                      name: 'createTask',
+                      description: 'Create a task inside a project with priority and optional assignee',
+                      parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                          projectNameOrId: { type: Type.STRING, description: 'Target project name or ID' },
+                          title: { type: Type.STRING, description: 'Task topic/title' },
+                          description: { type: Type.STRING, description: 'Task message/content' },
+                          priority: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
+                          assigneeNameOrEmail: { type: Type.STRING, description: 'User name or email to assign' },
+                        },
+                        required: ['title'],
+                      },
+                    },
+                    {
+                      name: 'updateTask',
+                      description: 'Update task title, description, priority, status, or assignee',
+                      parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                          taskTitleOrId: { type: Type.STRING, description: 'Target task title or ID' },
+                          projectNameOrId: { type: Type.STRING, description: 'Target project name or ID (optional)' },
+                          title: { type: Type.STRING, description: 'New task title' },
+                          description: { type: Type.STRING, description: 'New task description' },
+                          priority: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
+                          status: { type: Type.STRING, enum: ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'] },
+                          assigneeNameOrEmail: { type: Type.STRING, description: 'User name or email to assign' },
+                        },
+                        required: ['taskTitleOrId'],
+                      },
+                    },
+                    {
+                      name: 'deleteTask',
+                      description: 'Delete a task from a project',
+                      parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                          taskTitleOrId: { type: Type.STRING, description: 'Target task title or ID' },
+                          projectNameOrId: { type: Type.STRING, description: 'Target project name or ID (optional)' },
+                        },
+                        required: ['taskTitleOrId'],
+                      },
+                    },
                   ],
                 },
               ],
@@ -238,7 +339,7 @@ export class AiService {
         });
 
         return {
-          summary: `AI Assistant: No executable actions detected in prompt "${prompt}". Try: "Create project Mobile Launch" or "Invite dev@company.com".`,
+          summary: `AI Assistant: No executable actions detected in prompt "${prompt}". Try: "Create project Mobile Launch" or "Create urgent task Fix Auth assigned to Alex".`,
           actionsExecuted: [],
           auditLogId: auditLog._id.toString(),
         };
@@ -264,7 +365,11 @@ export class AiService {
       };
 
       // Helper to find project by name or ID
-      const findProject = async (targetWsId: string, projIdOrName: string) => {
+      const findProject = async (targetWsId: string, projIdOrName?: string) => {
+        if (!projIdOrName) {
+          // Default to latest created project in workspace if not specified
+          return this.projectModel.findOne({ workspaceId: new Types.ObjectId(targetWsId) }).sort({ createdAt: -1 }).exec();
+        }
         if (Types.ObjectId.isValid(projIdOrName)) {
           return this.projectModel.findById(projIdOrName).exec();
         }
@@ -275,6 +380,33 @@ export class AiService {
             { slug: projIdOrName.toLowerCase() },
           ],
         }).exec();
+      };
+
+      // Helper to find user by name or email
+      const findUserByNameOrEmail = async (identifier?: string) => {
+        if (!identifier || !identifier.trim()) return null;
+        const cleaned = identifier.trim();
+        return this.userModel.findOne({
+          $or: [
+            { email: cleaned.toLowerCase() },
+            { name: new RegExp(`^${cleaned}$`, 'i') },
+          ],
+        }).exec();
+      };
+
+      // Helper to find task by title or ID
+      const findTaskByTitleOrId = async (targetWsId: string, taskTitleOrId: string, projectId?: string) => {
+        if (Types.ObjectId.isValid(taskTitleOrId)) {
+          return this.taskModel.findById(taskTitleOrId).exec();
+        }
+        const query: any = {
+          workspaceId: new Types.ObjectId(targetWsId),
+          title: new RegExp(`^${taskTitleOrId}$`, 'i'),
+        };
+        if (projectId && Types.ObjectId.isValid(projectId)) {
+          query.projectId = new Types.ObjectId(projectId);
+        }
+        return this.taskModel.findOne(query).exec();
       };
 
       // Tool Call Execution Loop
@@ -308,7 +440,6 @@ export class AiService {
           const targetWsId = await findWorkspace(call.args.workspaceIdOrName);
           if (!targetWsId) throw new NotFoundException('Active workspace not found to create project.');
 
-          // Match member emails to user ObjectIds
           const memberIds: string[] = [];
           if (call.args.memberEmails && Array.isArray(call.args.memberEmails)) {
             for (const email of call.args.memberEmails) {
@@ -370,12 +501,7 @@ export class AiService {
           const memberIds: string[] = [];
           if (call.args.memberEmailsOrNames && Array.isArray(call.args.memberEmailsOrNames)) {
             for (const item of call.args.memberEmailsOrNames) {
-              const u = await this.userModel.findOne({
-                $or: [
-                  { email: item.toLowerCase() },
-                  { name: new RegExp(`^${item}$`, 'i') },
-                ],
-              }).exec();
+              const u = await findUserByNameOrEmail(item);
               if (u) memberIds.push(u._id.toString());
             }
           }
@@ -388,6 +514,73 @@ export class AiService {
             actionType: 'ADD_PROJECT_MEMBERS',
             targetId: proj._id.toString(),
             summary: `Added members to project "${proj.name}"`,
+          });
+        } else if (call.tool === 'createTask') {
+          const targetWsId = await findWorkspace();
+          if (!targetWsId) throw new NotFoundException('Active workspace required to create task.');
+
+          const proj = await findProject(targetWsId, call.args.projectNameOrId);
+          if (!proj) throw new NotFoundException('Project not found to create task.');
+
+          let assigneeId: string | undefined = undefined;
+          if (call.args.assigneeNameOrEmail) {
+            const assigneeUser = await findUserByNameOrEmail(call.args.assigneeNameOrEmail);
+            if (assigneeUser) assigneeId = assigneeUser._id.toString();
+          }
+
+          const createdTask = await this.tasksService.createTask(userId, proj._id.toString(), {
+            title: call.args.title,
+            description: call.args.description,
+            priority: call.args.priority,
+            assigneeId,
+          });
+
+          actionsExecuted.push({
+            actionType: 'CREATE_TASK',
+            targetId: createdTask._id.toString(),
+            summary: `Created task "${createdTask.title}" in project "${proj.name}"`,
+          });
+        } else if (call.tool === 'updateTask') {
+          const targetWsId = await findWorkspace();
+          if (!targetWsId) throw new NotFoundException('Active workspace required to update task.');
+
+          const proj = call.args.projectNameOrId ? await findProject(targetWsId, call.args.projectNameOrId) : null;
+          const targetTask = await findTaskByTitleOrId(targetWsId, call.args.taskTitleOrId, proj?._id?.toString());
+          if (!targetTask) throw new NotFoundException(`Task "${call.args.taskTitleOrId}" not found.`);
+
+          let assigneeId: string | undefined = undefined;
+          if (call.args.assigneeNameOrEmail) {
+            const assigneeUser = await findUserByNameOrEmail(call.args.assigneeNameOrEmail);
+            if (assigneeUser) assigneeId = assigneeUser._id.toString();
+          }
+
+          const updatedTask = await this.tasksService.updateTask(userId, targetTask._id.toString(), {
+            title: call.args.title,
+            description: call.args.description,
+            priority: call.args.priority,
+            status: call.args.status,
+            assigneeId,
+          });
+
+          actionsExecuted.push({
+            actionType: 'UPDATE_TASK',
+            targetId: updatedTask._id.toString(),
+            summary: `Updated task "${updatedTask.title}"`,
+          });
+        } else if (call.tool === 'deleteTask') {
+          const targetWsId = await findWorkspace();
+          if (!targetWsId) throw new NotFoundException('Active workspace required to delete task.');
+
+          const proj = call.args.projectNameOrId ? await findProject(targetWsId, call.args.projectNameOrId) : null;
+          const targetTask = await findTaskByTitleOrId(targetWsId, call.args.taskTitleOrId, proj?._id?.toString());
+          if (!targetTask) throw new NotFoundException(`Task "${call.args.taskTitleOrId}" not found.`);
+
+          await this.tasksService.deleteTask(userId, targetTask._id.toString());
+
+          actionsExecuted.push({
+            actionType: 'DELETE_TASK',
+            targetId: targetTask._id.toString(),
+            summary: `Deleted task "${targetTask.title}"`,
           });
         }
       }
