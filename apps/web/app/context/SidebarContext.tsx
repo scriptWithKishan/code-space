@@ -11,21 +11,22 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('primary_sidebar_open');
-      if (saved !== null) {
-        return saved === 'true';
-      }
-    }
-    return true;
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('primary_sidebar_open');
+    if (saved !== null) {
+      setIsSidebarOpen(saved === 'true');
+    }
+    setIsInitialized(true);
+  }, []);
+
+  useEffect(() => {
+    if (isInitialized) {
       localStorage.setItem('primary_sidebar_open', String(isSidebarOpen));
     }
-  }, [isSidebarOpen]);
+  }, [isSidebarOpen, isInitialized]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => !prev);
